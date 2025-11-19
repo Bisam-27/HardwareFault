@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoJournal - Disk Failure Simulation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #00d4ff;
+            --secondary-blue: #0066ff;
+            --accent-cyan: #00ffff;
+            --dark-bg: #0a0e27;
+            --card-bg: rgba(15, 25, 50, 0.7);
+            --card-border: rgba(0, 212, 255, 0.2);
+            --text-primary: #e8f4f8;
+            --text-secondary: #8b9dc3;
+            --danger-red: #ff0055;
+            --success-green: #00ff88;
+            --warning-yellow: #ffaa00;
+            --char-limit: 500;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: radial-gradient(ellipse at top, #0f1933, #0a0e27);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 102, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 90%, rgba(0, 255, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            animation: ambient 20s ease-in-out infinite;
+        }
+
+        @keyframes ambient {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.8; }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--primary-blue);
+            border-radius: 50%;
+            animation: float 15s infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            33% { transform: translateY(-30px) translateX(20px); }
+            66% { transform: translateY(-15px) translateX(-20px); }
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .logo-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 1.5rem 3rem;
+            background: linear-gradient(135deg, var(--card-bg), rgba(0, 102, 255, 0.1));
+            border-radius: 20px;
+            border: 2px solid var(--card-border);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
+        }
+
+        .logo-icon {
+            font-size: 3rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.5));
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-blue), var(--accent-cyan), var(--secondary-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+            text-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 0.7rem 1.5rem;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--card-border);
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
+
+        .user-badge i {
+            color: var(--primary-blue);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-blue), var(--accent-cyan));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 102, 255, 0.2));
+            border-radius: 10px;
+            font-size: 1.3rem;
+            color: var(--primary-blue);
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .failure-toggle-container {
+            margin-bottom: 2rem;
+        }
+
+        .failure-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(255, 0, 85, 0.1), rgba(255, 0, 85, 0.05));
+            border: 2px solid rgba(255, 0, 85, 0.3);
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .failure-toggle::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 0, 85, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .failure-toggle:hover::before {
+            left: 100%;
+        }
+
+        .failure-toggle.active {
+            background: linear-gradient(135deg, rgba(255, 0, 85, 0.2), rgba(255, 0, 85, 0.1));
+            border-color: var(--danger-red);
+            box-shadow: 0 0 30px rgba(255, 0, 85, 0.3);
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+
+        .toggle-label i {
+            font-size: 1.5rem;
+            filter: drop-shadow(0 0 10px currentColor);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(135deg, #666, #888);
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-switch.active {
+            background: var(--danger-red);
+            border-color: var(--danger-red);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(30px);
+            background: linear-gradient(135deg, #fff, #f0f0f0);
+            box-shadow: 0 2px 10px rgba(255, 0, 85, 0.5);
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.7rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .input-label i {
+            color: var(--primary-blue);
+        }
+
+        .entry-title {
+            width: 100%;
+            padding: 1rem 1.2rem;
+            background: rgba(0, 212, 255, 0.05);
+            border: 2px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1.3rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .entry-title:focus {
+            background: rgba(0, 212, 255, 0.08);
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .entry-content {
+            width: 100%;
+            min-height: 350px;
+            padding: 1.2rem;
+            background: rgba(0, 212, 255, 0.05);
+            border: 2px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            line-height: 1.8;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .entry-content:focus {
+            background: rgba(0, 212, 255, 0.08);
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 1.2rem;
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 212, 255, 0.2);
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-blue);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-blue);
+            transition: color 0.3s;
+        }
+
+        .stat-value.warning {
+            color: var(--warning-yellow);
+        }
+
+        .stat-value.danger {
+            color: var(--danger-red);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-blue), var(--accent-cyan));
+            transition: width 0.3s ease, background 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, var(--warning-yellow), #ffcc00);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, var(--danger-red), #ff3366);
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 1.2rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .save-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .save-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .save-btn:active {
+            transform: translateY(0);
+        }
+
+        .save-btn i {
+            font-size: 1.2rem;
+        }
+
+        .history-list {
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .history-item {
+            padding: 1.2rem;
+            background: rgba(0, 212, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .history-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--primary-blue), var(--accent-cyan));
+            border-radius: 3px 0 0 3px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .history-item:hover {
+            background: rgba(0, 212, 255, 0.08);
+            transform: translateX(5px);
+            border-color: var(--primary-blue);
+        }
+
+        .history-item:hover::before {
+            opacity: 1;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .history-icon {
+            color: var(--primary-blue);
+            font-size: 1rem;
+        }
+
+        .history-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .history-preview {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 0.7rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .history-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .history-meta i {
+            color: var(--primary-blue);
+            margin-right: 0.3rem;
+        }
+
+        .error-banner {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            max-width: 450px;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(255, 0, 85, 0.95), rgba(200, 0, 60, 0.95));
+            border-radius: 15px;
+            border: 2px solid var(--danger-red);
+            box-shadow: 0 10px 40px rgba(255, 0, 85, 0.4);
+            display: none;
+            z-index: 1000;
+            animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            backdrop-filter: blur(10px);
+        }
+
+        .error-banner.show {
+            display: block;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(500px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .error-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-icon {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+        }
+
+        .error-title {
+            font-weight: 700;
+            font-size: 1.3rem;
+            flex: 1;
+        }
+
+        .close-error {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-error:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .error-message {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .log-section {
+            grid-column: 1 / -1;
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .log-toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            padding: 0.8rem 1.5rem;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--primary-blue);
+            border-radius: 8px;
+            color: var(--primary-blue);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .log-toggle-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .log-content {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1.5rem;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: var(--success-green);
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .log-content.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: rgba(0, 255, 136, 0.05);
+            border-left: 3px solid var(--success-green);
+            border-radius: 5px;
+        }
+
+        .log-entry.error {
+            color: var(--danger-red);
+            background: rgba(255, 0, 85, 0.05);
+            border-left-color: var(--danger-red);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--primary-blue);
+            opacity: 0.3;
+            margin-bottom: 1rem;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--primary-blue), var(--accent-cyan));
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, var(--accent-cyan), var(--primary-blue));
+        }
+
+        @media (max-width: 1200px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .error-banner {
+                left: 1rem;
+                right: 1rem;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <header class="header">
+            <div class="logo-container">
+                <i class="fas fa-book-open logo-icon"></i>
+                <h1>NeoJournal</h1>
+            </div>
+            <p class="subtitle">Next-Gen Digital Journal with Hardware Failure Simulation</p>
+            <div class="user-badge">
+                <i class="fas fa-user-circle"></i>
+                <span id="currentUser"></span>
+            </div>
+        </header>
+
+        <div class="grid-layout">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-pen-fancy"></i>
+                    </div>
+                    <h2 class="card-title">Compose Entry</h2>
+                </div>
+
+                <div class="failure-toggle-container">
+                    <div class="failure-toggle" id="failureToggle">
+                        <div class="toggle-label">
+                            <i class="fas fa-hard-drive"></i>
+                            <span>Disk Failure Mode</span>
+                        </div>
+                        <div class="toggle-switch" id="toggleSwitch"></div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">
+                        <i class="fas fa-heading"></i>
+                        <span>Entry Title</span>
+                    </label>
+                    <input type="text" class="entry-title" id="entryTitle" placeholder="Give your entry a title...">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">
+                        <i class="fas fa-align-left"></i>
+                        <span>Content</span>
+                    </label>
+                    <textarea class="entry-content" id="entryContent" placeholder="Pour your thoughts here..."></textarea>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-word"></i>
+                        </div>
+                        <div class="stat-value" id="wordCount">0</div>
+                        <div class="stat-label">Words</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-keyboard"></i>
+                        </div>
+                        <div class="stat-value" id="charCount">0</div>
+                        <div class="stat-label">Characters</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="stat-value" id="charLimit">500</div>
+                        <div class="stat-label">Limit</div>
+                    </div>
+                </div>
+
+                <button class="save-btn" id="saveBtn">
+                    <i class="fas fa-save"></i>
+                    <span>Save Entry</span>
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <h2 class="card-title">Entry Archive</h2>
+                </div>
+                <div class="history-list" id="historyList">
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No entries yet. Start writing!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card log-section">
+            <div class="log-header">
+                <div class="card-header" style="margin-bottom: 0; padding-bottom: 0; border: none;">
+                    <div class="card-icon">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <h2 class="card-title">System Logs</h2>
+                </div>
+                <button class="log-toggle-btn" id="logToggle">
+                    <i class="fas fa-chevron-down"></i>
+                    <span>Show Logs</span>
+                </button>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
+    </div>
+
+    <div class="error-banner" id="errorBanner">
+        <div class="error-header">
+            <i class="fas fa-exclamation-triangle error-icon"></i>
+            <div class="error-title">Disk Failure</div>
+            <button class="close-error" id="closeError">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <script>
+        class NeoJournal {
+            constructor() {
+                this.config = {
+                    charLimit: 500,
+                    warningThreshold: 0.8,
+                    dangerThreshold: 1.0,
+                    particleCount: 30
+                };
+                this.state = {
+                    failureMode: false,
+                    currentUser: this.generateUserId(),
+                    logs: [],
+                    entries: this.loadEntries()
+                };
+                this.init();
+            }
+
+            generateUserId() {
+                const prefixes = ['Cyber', 'Neon', 'Quantum', 'Digital', 'Nova', 'Stellar', 'Pulse', 'Echo'];
+                const suffixes = ['Writer', 'Scribe', 'Author', 'Poet', 'Thinker', 'Dreamer', 'Creator', 'Mind'];
+                const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+                const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                const num = Math.floor(Math.random() * 9000) + 1000;
+                return `${prefix}${suffix}${num}`;
+            }
+
+            init() {
+                this.createParticles();
+                this.renderUI();
+                this.attachEvents();
+                this.updateStats();
+                this.addLog('INFO', `Session initialized for user: ${this.state.currentUser}`);
+            }
+
+            createParticles() {
+                const container = document.getElementById('particles');
+                for (let i = 0; i < this.config.particleCount; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
+                    particle.style.left = `${Math.random() * 100}%`;
+                    particle.style.top = `${Math.random() * 100}%`;
+                    particle.style.animationDelay = `${Math.random() * 15}s`;
+                    particle.style.animationDuration = `${15 + Math.random() * 10}s`;
+                    container.appendChild(particle);
+                }
+            }
+
+            renderUI() {
+                document.getElementById('currentUser').textContent = this.state.currentUser;
+                document.getElementById('charLimit').textContent = this.config.charLimit;
+                this.renderHistory();
+            }
+
+            attachEvents() {
+                document.getElementById('failureToggle').addEventListener('click', () => this.toggleFailureMode());
+                document.getElementById('saveBtn').addEventListener('click', () => this.saveEntry());
+                document.getElementById('entryContent').addEventListener('input', () => this.updateStats());
+                document.getElementById('entryTitle').addEventListener('input', () => this.updateStats());
+                document.getElementById('closeError').addEventListener('click', () => this.hideError());
+                document.getElementById('logToggle').addEventListener('click', () => this.toggleLogs());
+            }
+
+            toggleFailureMode() {
+                this.state.failureMode = !this.state.failureMode;
+                const toggle = document.getElementById('failureToggle');
+                const toggleSwitch = document.getElementById('toggleSwitch');
+                
+                toggle.classList.toggle('active', this.state.failureMode);
+                toggleSwitch.classList.toggle('active', this.state.failureMode);
+                
+                const status = this.state.failureMode ? 'ENABLED' : 'DISABLED';
+                const message = `Disk failure simulation ${status} - ${this.state.failureMode ? 'saves exceeding limit will fail' : 'normal operation'}`;
+                this.addLog('INFO', message);
+            }
+
+            updateStats() {
+                const title = document.getElementById('entryTitle').value;
+                const content = document.getElementById('entryContent').value;
+                const totalChars = title.length + content.length;
+                const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+                const percentage = (totalChars / this.config.charLimit) * 100;
+
+                document.getElementById('wordCount').textContent = words;
+                
+                const charCountEl = document.getElementById('charCount');
+                const progressFill = document.getElementById('progressFill');
+                
+                charCountEl.textContent = totalChars;
+                charCountEl.className = 'stat-value';
+                progressFill.className = 'progress-fill';
+                
+                progressFill.style.width = `${Math.min(percentage, 100)}%`;
+
+                if (totalChars >= this.config.charLimit * this.config.dangerThreshold) {
+                    charCountEl.classList.add('danger');
+                    progressFill.classList.add('danger');
+                } else if (totalChars >= this.config.charLimit * this.config.warningThreshold) {
+                    charCountEl.classList.add('warning');
+                    progressFill.classList.add('warning');
+                }
+            }
+
+            saveEntry() {
+                const title = document.getElementById('entryTitle').value.trim();
+                const content = document.getElementById('entryContent').value.trim();
+                
+                if (!title || !content) {
+                    this.showError('Incomplete Entry\n\nPlease provide both a title and content before saving.');
+                    this.addLog('WARN', 'Save attempt rejected - missing title or content');
+                    return;
+                }
+
+                const totalSize = title.length + content.length;
+                const docId = `entry_${Date.now()}_${this.generateRandomId()}`;
+
+                if (this.state.failureMode && totalSize > this.config.charLimit) {
+                    this.triggerDiskFailure(docId, totalSize);
+                    return;
+                }
+
+                this.performSave(docId, title, content, totalSize);
+            }
+
+            triggerDiskFailure(docId, size) {
+                const errorCode = 'ENOSPC';
+                const errorMessage = 'No space left on device';
+                const exceeded = size - this.config.charLimit;
+                
+                const logEntry = {
+                    timestamp: new Date().toISOString(),
+                    level: 'ERROR',
+                    user: this.state.currentUser,
+                    docId: docId,
+                    size: size,
+                    errorCode: errorCode,
+                    errorMessage: errorMessage,
+                    limitExceeded: exceeded,
+                    failureType: 'HARDWARE_FAILURE_SIMULATED'
+                };
+
+                console.error('💥 DISK FAILURE DETECTED:', JSON.stringify(logEntry, null, 2));
+                
+                this.addLog('ERROR', JSON.stringify(logEntry, null, 2), true);
+                
+                this.showError(
+                    `${errorCode}: ${errorMessage}\n\n` +
+                    `Entry Size: ${size} characters\n` +
+                    `Disk Limit: ${this.config.charLimit} characters\n` +
+                    `Exceeded By: ${exceeded} characters\n\n` +
+                    `Action Required: Reduce content to save successfully.`
+                );
+            }
+
+            performSave(docId, title, content, size) {
+                try {
+                    const entry = {
+                        id: docId,
+                        title: title,
+                        content: content,
+                        timestamp: new Date().toISOString(),
+                        size: size,
+                        user: this.state.currentUser
+                    };
+
+                    this.state.entries.unshift(entry);
+                    localStorage.setItem('neoJournalEntries', JSON.stringify(this.state.entries));
+
+                    this.addLog('SUCCESS', `Entry saved successfully - ID: ${docId}, Size: ${size} chars`);
+
+                    this.clearForm();
+                    this.renderHistory();
+                    this.animateSaveSuccess();
+
+                } catch (error) {
+                    this.addLog('ERROR', `Storage error: ${error.message}`);
+                    this.showError(`Unexpected Error\n\n${error.message}`);
+                }
+            }
+
+            clearForm() {
+                document.getElementById('entryTitle').value = '';
+                document.getElementById('entryContent').value = '';
+                this.updateStats();
+            }
+
+            animateSaveSuccess() {
+                const btn = document.getElementById('saveBtn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check-circle"></i><span>Saved Successfully!</span>';
+                btn.style.background = 'linear-gradient(135deg, #00ff88, #00cc66)';
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.style.background = '';
+                }, 2000);
+            }
+
+            showError(message) {
+                const banner = document.getElementById('errorBanner');
+                document.getElementById('errorMessage').textContent = message;
+                banner.classList.add('show');
+
+                setTimeout(() => banner.classList.remove('show'), 8000);
+            }
+
+            hideError() {
+                document.getElementById('errorBanner').classList.remove('show');
+            }
+
+            addLog(level, message, isError = false) {
+                const logEntry = {
+                    timestamp: new Date().toISOString(),
+                    level: level,
+                    message: message
+                };
+
+                this.state.logs.push(logEntry);
+                
+                const logContent = document.getElementById('logContent');
+                const logDiv = document.createElement('div');
+                logDiv.className = `log-entry${isError ? ' error' : ''}`;
+                
+                const displayMessage = typeof message === 'string' && !message.startsWith('{') 
+                    ? `[${logEntry.timestamp}] ${level}: ${message}`
+                    : message;
+                    
+                logDiv.textContent = displayMessage;
+                logContent.insertBefore(logDiv, logContent.firstChild);
+
+                if (this.state.logs.length > 100) {
+                    this.state.logs.shift();
+                    logContent.removeChild(logContent.lastChild);
+                }
+            }
+
+            toggleLogs() {
+                const logContent = document.getElementById('logContent');
+                const logToggle = document.getElementById('logToggle');
+                const icon = logToggle.querySelector('i');
+                
+                logContent.classList.toggle('show');
+                
+                if (logContent.classList.contains('show')) {
+                    icon.className = 'fas fa-chevron-up';
+                    logToggle.querySelector('span').textContent = 'Hide Logs';
+                } else {
+                    icon.className = 'fas fa-chevron-down';
+                    logToggle.querySelector('span').textContent = 'Show Logs';
+                }
+            }
+
+            loadEntries() {
+                try {
+                    const stored = localStorage.getItem('neoJournalEntries');
+                    return stored ? JSON.parse(stored) : [];
+                } catch (error) {
+                    console.error('Error loading entries:', error);
+                    return [];
+                }
+            }
+
+            renderHistory() {
+                const historyList = document.getElementById('historyList');
+                
+                if (this.state.entries.length === 0) {
+                    historyList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open"></i>
+                            <p>No entries yet. Start writing!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                historyList.innerHTML = this.state.entries.map(entry => {
+                    const date = new Date(entry.timestamp);
+                    const formattedDate = date.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    return `
+                        <div class="history-item" onclick="app.loadEntry('${entry.id}')">
+                            <div class="history-header">
+                                <i class="fas fa-file-alt history-icon"></i>
+                                <div class="history-title">${this.escapeHtml(entry.title)}</div>
+                            </div>
+                            <div class="history-preview">${this.escapeHtml(entry.content.substring(0, 120))}${entry.content.length > 120 ? '...' : ''}</div>
+                            <div class="history-meta">
+                                <span><i class="fas fa-clock"></i>${formattedDate}</span>
+                                <span><i class="fas fa-text-width"></i>${entry.size} chars</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            loadEntry(id) {
+                const entry = this.state.entries.find(e => e.id === id);
+                if (entry) {
+                    document.getElementById('entryTitle').value = entry.title;
+                    document.getElementById('entryContent').value = entry.content;
+                    this.updateStats();
+                    this.addLog('INFO', `Loaded entry from archive: ${id}`);
+                    
+                    document.getElementById('entryTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+
+            generateRandomId() {
+                return Math.random().toString(36).substring(2, 11);
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        const app = new NeoJournal();
+    </script>
+</body>
+</html>
